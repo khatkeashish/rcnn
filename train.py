@@ -1,4 +1,5 @@
 # Import libraries
+import os
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 
@@ -48,8 +49,11 @@ if __name__ == '__main__':
     configs = Configs(data_dir, num_classes, dropout_rate, learning_rate, test_size, image_shape, batch_size, epochs, optimizer, loss, metrics)
 
 
-    # Preprocess dataset (will cache to preprocessed.npz by default)
-    X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels)
+    # Preprocess dataset (will cache to preprocessed.pkl in dataset folder)
+    processed_dir = os.path.join(os.getcwd(), "processed")
+    os.makedirs(processed_dir, exist_ok=True)
+    cache_path = os.path.join(processed_dir, "preprocessed_train.pkl")
+    X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels, out_path=cache_path)
     # labels -> categorical
     y = tf.keras.utils.to_categorical(y, len(voc_labels))
     # split the data

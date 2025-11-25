@@ -1,3 +1,4 @@
+import os
 import tensorflow as tf
 import cv2
 import numpy as np
@@ -82,9 +83,12 @@ if __name__ == '__main__':
     model = get_model("person_model", (None, 64, 64, 3))
     model.summary()
 
+    processed_dir = os.path.join(os.getcwd(), "processed")
+    os.makedirs(processed_dir, exist_ok=True)
+    cache_path = os.path.join(processed_dir, "preprocessed_test.pkl")
     if args.eval:
         # Load preprocessed dataset (will use cache if exists)
-        X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels)
+        X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels, out_path=cache_path)
         y_cat = tf.keras.utils.to_categorical(y, len(voc_labels))
         loss, acc = model.evaluate(X, y_cat, batch_size=32)
         print(f"Eval loss={loss:.4f} acc={acc:.4f}")

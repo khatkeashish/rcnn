@@ -1,8 +1,8 @@
 import os
 import numpy as np
 from tqdm import tqdm
+import pickle
 
-# Local imports
 from voc2012 import getFilepaths, loadImage, loadAnnotation
 from utils import selectiveSearch, getROI, bb_intersection_over_union
 
@@ -83,12 +83,37 @@ def create_dataset(image_paths, annotation_paths, image_shape, voc_labels):
     return np.array(images), np.array(labels)
 
 
-def preprocess_dataset(data_dir, image_shape, voc_labels, out_path="preprocessed.npz"):
+def preprocess_dataset(data_dir, image_shape, voc_labels, out_path=None):
+    """Preprocess dataset and cache to `out_path` using pickle.
+    If cache exists it will be loaded instead of re-running processing.
+    Returns: (X, y) numpy arrays
+    """
+    # Default output path placed under repo-level `processed/` directory
+    if out_path is None:
+        processed_dir = os.path.join(os.getcwd(), "processed")
+        os.makedirs(processed_dir, exist_ok=True)
+        out_path = os.path.join(processed_dir, "preprocessed.pkl")
+    else:
+        # Ensure containing directory exists
+        parent = os.path.dirname(out_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
     if os.path.exists(out_path):
-        npz = np.load(out_path)
-        return npz["X"], npz["y"]
+        try:
+            with open(out_path, "rb") as f:
+                data = pickle.load(f)
+            return data.get("X"), data.get("y")
+        except Exception:
+            # fallthrough to regenerate
+            pass
 
     image_paths, annotation_paths = getFilepaths(data_dir)
     X, y = create_dataset(image_paths, annotation_paths, image_shape, voc_labels)
-    np.savez_compressed(out_path, X=X, y=y)
+    try:
+        with open(out_path, "wb") as f:
+            pickle.dump({"X": X, "y": y}, f, protocol=pickle.HIGHEST_PROTOCOL)
+    except Exception:
+        # If saving fails, ignore but return the data
+        pass
     return X, y
