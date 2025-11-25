@@ -38,15 +38,16 @@ class DictList(dict):
 
 
 if __name__ == '__main__':
-    # For Keras
-    config = tf.compat.v1.ConfigProto()
-    # dynamically grow the memory used on the GPU
-    # to log device placement (on which device the operation ran)
-    config.gpu_options.allow_growth = True
-    config.log_device_placement = True
-    sess = tf.compat.v1.Session(config=config)
-    # set this TensorFlow session as the default session for Keras
-    tf.compat.v1.keras.backend.set_session(sess)
+    # Configure GPU memory growth
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        try:
+            for gpu in gpus:
+                tf.config.set_memory_growth(gpu, True)
+            logical_gpus = tf.config.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+        except RuntimeError as e:
+            print(e)
 
     # get trainewd labels
     voc_labels = get_labels(filtered=True)

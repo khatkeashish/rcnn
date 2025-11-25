@@ -43,9 +43,8 @@ def get_labels(filtered):
 		}
 	return voc_labels
 
-# %%
 def getFilepaths(DATA_DIR):
-    print("Getting paths for images and corrosponding lables")
+    print("Reading paths for images and annotations")
 
     ANNOTATION_DIR = os.path.join(DATA_DIR, "Annotations")
     IMAGES_DIR = os.path.join(DATA_DIR, "JPEGImages")
