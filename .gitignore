@@ -1,4 +1,16 @@
 **/__pycache__
 
 .venv
+
+# Data
 VOC2012**
+processed/
+*.pkl
+*.npz
+*.part*.pkl
+
+# Editor / OS files
+.DS_Store
+*.swp
+*.swo
+.vscode/

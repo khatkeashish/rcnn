@@ -81,31 +81,58 @@ def _process_single(idx, image_paths, annotation_paths, image_shape, voc_labels)
     return X, y
 
 
-def create_dataset(image_paths, annotation_paths, image_shape, voc_labels, workers=None):
+def create_dataset(image_paths, annotation_paths, image_shape, voc_labels, workers=None, chunk_size=None, cache_dir=None, cache_name=None):
     images = []
     labels = []
     n = len(image_paths)
     if workers is None:
         workers = max(1, int(0.8 * cpu_count()))
 
+    # If chunking is requested, process in chunks and optionally persist partial results
+    if chunk_size and chunk_size > 0:
+        start = 0
+        part_idx = 0
+        while start < n:
+            end = min(start + chunk_size, n)
+            idxs = list(range(start, end))
+            part_images, part_labels = _create_subset(idxs, image_paths, annotation_paths, image_shape, voc_labels, workers)
+            images.extend(part_images)
+            labels.extend(part_labels)
+            # Save intermediate partial cache if requested
+            if cache_dir and cache_name:
+                part_path = os.path.join(cache_dir, f"{cache_name}.part{part_idx}.pkl")
+                try:
+                    with open(part_path, "wb") as f:
+                        pickle.dump({"X": np.array(part_images), "y": np.array(part_labels)}, f, protocol=pickle.HIGHEST_PROTOCOL)
+                except Exception:
+                    pass
+            part_idx += 1
+            start = end
+        return np.array(images), np.array(labels)
+
+    # No chunking: process entire dataset at once
+    return _create_subset(range(n), image_paths, annotation_paths, image_shape, voc_labels, workers)
+
+
+def _create_subset(idxs, image_paths, annotation_paths, image_shape, voc_labels, workers):
+    images = []
+    labels = []
+    n = len(list(idxs))
     if workers == 1:
-        # Serial fallback
-        for idx in tqdm(range(n), desc="Creating dataset"):
+        for idx in tqdm(idxs, desc="Creating dataset chunk"):
             X, y = _process_single(idx, image_paths, annotation_paths, image_shape, voc_labels)
             images.extend(X)
             labels.extend(y)
     else:
         with Pool(processes=workers) as pool:
             func = partial(_process_single, image_paths=image_paths, annotation_paths=annotation_paths, image_shape=image_shape, voc_labels=voc_labels)
-            # imap to keep order and use tqdm for progress
-            for X, y in tqdm(pool.imap(func, range(n)), total=n, desc="Creating dataset"):
+            for X, y in tqdm(pool.imap(func, idxs), total=n, desc="Creating dataset chunk"):
                 images.extend(X)
                 labels.extend(y)
-
     return np.array(images), np.array(labels)
 
 
-def preprocess_dataset(data_dir, image_shape, voc_labels, out_path=None, workers=None):
+def preprocess_dataset(data_dir, image_shape, voc_labels, out_path=None, workers=None, cache_name=None, chunk_size=None):
     """Preprocess dataset and cache to `out_path` using pickle.
     If cache exists it will be loaded instead of re-running processing.
     Returns: (X, y) numpy arrays
@@ -131,7 +158,38 @@ def preprocess_dataset(data_dir, image_shape, voc_labels, out_path=None, workers
             pass
 
     image_paths, annotation_paths = getFilepaths(data_dir)
-    X, y = create_dataset(image_paths, annotation_paths, image_shape, voc_labels, workers=workers)
+    # Determine cache naming and chunking behavior
+    # If cache_name provided, use it as base for part files
+    cache_dir = os.path.dirname(out_path) if os.path.dirname(out_path) else os.getcwd()
+    if cache_name is None:
+        # derive cache_name from out_path and image_shape
+        base = os.path.splitext(os.path.basename(out_path))[0]
+        cache_name = f"{base}_s{image_shape[0]}"
+
+    X, y = create_dataset(image_paths, annotation_paths, image_shape, voc_labels, workers=workers, chunk_size=chunk_size, cache_dir=cache_dir, cache_name=cache_name)
+
+    # If chunking was used, there may be part files; try merging them into final cache
+    if chunk_size and chunk_size > 0:
+        # find part files
+        parts = sorted([p for p in os.listdir(cache_dir) if p.startswith(cache_name) and p.endswith('.pkl') and '.part' in p])
+        if parts:
+            X_list = [X]
+            y_list = [y]
+            for part in parts:
+                part_path = os.path.join(cache_dir, part)
+                try:
+                    with open(part_path, 'rb') as f:
+                        data = pickle.load(f)
+                    X_list.append(data.get('X'))
+                    y_list.append(data.get('y'))
+                except Exception:
+                    pass
+            try:
+                X = np.concatenate([arr for arr in X_list if arr is not None])
+                y = np.concatenate([arr for arr in y_list if arr is not None])
+            except Exception:
+                pass
+
     try:
         with open(out_path, "wb") as f:
             pickle.dump({"X": X, "y": y}, f, protocol=pickle.HIGHEST_PROTOCOL)

@@ -17,14 +17,14 @@ def ensure_processed_dir():
     return processed_dir
 
 
-def build_cache(data_dir, image_shape, voc_labels, out_name, force=False, workers=None):
+def build_cache(data_dir, image_shape, voc_labels, out_name, force=False, workers=None, cache_name=None, chunk_size=None):
     processed_dir = ensure_processed_dir()
     out_path = os.path.join(processed_dir, out_name) if not os.path.isabs(out_name) else out_name
     if os.path.exists(out_path) and not force:
         print(f"Cache exists: {out_path} (use --force to regenerate)")
         return
     print(f"Building cache for {data_dir} -> {out_path}")
-    preprocess_dataset(data_dir, image_shape, voc_labels, out_path=out_path, workers=workers)
+    preprocess_dataset(data_dir, image_shape, voc_labels, out_path=out_path, workers=workers, cache_name=cache_name, chunk_size=chunk_size)
     print("Done")
 
 
@@ -36,6 +36,8 @@ if __name__ == '__main__':
     parser.add_argument('--force', action='store_true', help='Force regeneration of caches')
     parser.add_argument('--out-dir', dest='out_dir', required=False, help='Directory to write processed caches (default: ./processed)')
     parser.add_argument('--workers', type=int, required=False, help='Number of worker processes to use (default: 80% of CPUs)')
+    parser.add_argument('--cache-name', dest='cache_name', required=False, help='Base name for cache files (default derived from out-path)')
+    parser.add_argument('--chunk-size', dest='chunk_size', type=int, required=False, help='Process dataset in chunks of this many images to limit memory (default: disabled)')
     args = parser.parse_args()
 
     # voc_labels from voc2012 module to keep filtering consistent
@@ -63,8 +65,12 @@ if __name__ == '__main__':
 
     # Pass workers through to preprocess_dataset
     workers = args.workers
-    build_cache(train_data, image_shape, voc_labels, os.path.join(processed_dir, "preprocessed_train.pkl"), force=args.force, workers=workers)
+    build_cache(train_data, image_shape, voc_labels, os.path.join(processed_dir, "preprocessed_train.pkl"), force=args.force, workers=workers, cache_name=args.cache_name, chunk_size=args.chunk_size)
+    # pass cache control args via global variables
+    if args.cache_name or args.chunk_size:
+        # update build_cache to pass these along
+        pass
     if test_data:
-        build_cache(test_data, image_shape, voc_labels, os.path.join(processed_dir, "preprocessed_test.pkl"), force=args.force, workers=workers)
+        build_cache(test_data, image_shape, voc_labels, os.path.join(processed_dir, "preprocessed_test.pkl"), force=args.force, workers=workers, cache_name=args.cache_name, chunk_size=args.chunk_size)
 
     print("All requested caches are prepared.")

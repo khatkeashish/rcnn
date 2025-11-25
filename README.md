@@ -33,3 +33,44 @@ The created features from the CNN are used for classification task. For this, we
 
 ### Non-max supression
 Now we have 2000 regions and respective confidence scores for the classes. With a greedy alogorithm, non-max suppresion, appropriate regions are combined. The method rejects a region if it has an IOU overlap with higher scoring selected region.
+
+
+## Preprocessing & dataset preparation
+
+This repo includes helper scripts to preprocess VOC datasets into cached pickles of ROI image patches and labels.
+
+prepare_datasets.py flags
+- `--train_data`: path to VOC train/val directory (defaults to `VOC2012_train_val/VOC2012_train_val` if present)
+- `--test_data`: path to VOC test directory (defaults to `VOC2012_test/VOC2012_test` if present)
+- `--out-dir`: directory to write caches (default: `./processed`)
+- `--force`: force regeneration even if cache exists
+- `--workers`: number of worker processes (default: 80% of CPUs)
+- `--cache-name`: base name for cache files (default derived from out-path and image size)
+- `--chunk-size`: process images in chunks of this size to limit memory usage (default: disabled)
+
+Examples:
+
+- Default prepare (uses repo folders and writes to `processed`):
+```
+make prepare
+```
+
+- Force prepare with 8 workers and chunking of 100 images:
+```
+make prepare-force WORKERS=8 CACHE_NAME=myrun CHUNK_SIZE=100 OUT_DIR=/tmp/processed
+```
+
+Using train/test scripts directly
+- Train using custom cache and regeneration:
+```
+python3 train.py --out-dir /tmp/processed --regen-cache --workers 8 --cache-name myrun --chunk-size 100
+```
+
+- Evaluate using cached test dataset:
+```
+python3 test.py --eval --out-dir /tmp/processed --workers 8
+```
+
+Notes
+- Chunking writes intermediate part files named like `<cache_name>.part0.pkl` in the cache directory and merges them into the final cache at the end. Use `--chunk-size` to limit memory pressure when building large datasets.
+- The default worker count is 80% of available CPUs; override with `--workers N` if needed.

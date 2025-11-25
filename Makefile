@@ -7,9 +7,11 @@ TRAIN_DIR := VOC2012_train_val/VOC2012_train_val
 TEST_DIR := VOC2012_test/VOC2012_test
 OUT_DIR ?= processed
 WORKERS ?= 
+CACHE_NAME ?= 
+CHUNK_SIZE ?= 
 
 prepare:
-	python3 prepare_datasets.py --train_data $(TRAIN_DIR) --test_data $(TEST_DIR) --out-dir $(OUT_DIR) $(if $(WORKERS),--workers $(WORKERS))
+	python3 prepare_datasets.py --train_data $(TRAIN_DIR) --test_data $(TEST_DIR) --out-dir $(OUT_DIR) $(if $(WORKERS),--workers $(WORKERS)) $(if $(CACHE_NAME),--cache-name $(CACHE_NAME)) $(if $(CHUNK_SIZE),--chunk-size $(CHUNK_SIZE))
 
 prepare-force:
-	python3 prepare_datasets.py --train_data $(TRAIN_DIR) --test_data $(TEST_DIR) --out-dir $(OUT_DIR) --force $(if $(WORKERS),--workers $(WORKERS))
+	python3 prepare_datasets.py --train_data $(TRAIN_DIR) --test_data $(TEST_DIR) --out-dir $(OUT_DIR) --force $(if $(WORKERS),--workers $(WORKERS)) $(if $(CACHE_NAME),--cache-name $(CACHE_NAME)) $(if $(CHUNK_SIZE),--chunk-size $(CHUNK_SIZE))

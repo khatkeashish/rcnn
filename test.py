@@ -48,6 +48,9 @@ if __name__ == '__main__':
     parser.add_argument('--eval', action='store_true', help='Run evaluation on preprocessed dataset')
     parser.add_argument('--out-dir', dest='out_dir', required=False, help='Directory to read/write cached preprocessed files (default: ./processed)')
     parser.add_argument('--regen-cache', action='store_true', help='Force regeneration of the preprocess cache')
+    parser.add_argument('--workers', type=int, required=False, help='Number of worker processes to use (default: 80% of CPUs)')
+    parser.add_argument('--cache-name', dest='cache_name', required=False, help='Base name for cache files (default derived from out-path and image size)')
+    parser.add_argument('--chunk-size', dest='chunk_size', type=int, required=False, help='Process in chunks of this many images to limit memory')
     args = parser.parse_args()
     # Configure GPU memory growth
     gpus = tf.config.list_physical_devices('GPU')
@@ -101,7 +104,9 @@ if __name__ == '__main__':
                 pass
         # Load preprocessed dataset (will use cache if exists)
         workers = getattr(args, 'workers', None)
-        X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels, out_path=cache_path, workers=workers)
+        cache_name = getattr(args, 'cache_name', None)
+        chunk_size = getattr(args, 'chunk_size', None)
+        X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels, out_path=cache_path, workers=workers, cache_name=cache_name, chunk_size=chunk_size)
         y_cat = tf.keras.utils.to_categorical(y, len(voc_labels))
         loss, acc = model.evaluate(X, y_cat, batch_size=32)
         print(f"Eval loss={loss:.4f} acc={acc:.4f}")
