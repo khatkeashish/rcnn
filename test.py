@@ -4,6 +4,8 @@ import numpy as np
 
 from voc2012 import get_labels, getFilepaths, loadImage, loadAnnotation, plot_annotations
 from utils import Configs, selectiveSearch, getROI, non_max_suppression_fast
+from preprocessing import preprocess_dataset
+import argparse
 
 
 def get_model(path, input_shape):
@@ -41,6 +43,9 @@ class DictList(dict):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--eval', action='store_true', help='Run evaluation on preprocessed dataset')
+    args = parser.parse_args()
     # Configure GPU memory growth
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
@@ -73,12 +78,19 @@ if __name__ == '__main__':
     metrics=["accuracy"]
 
     configs = Configs(data_dir, num_classes, dropout_rate, learning_rate, test_size, image_shape, batch_size, epochs, optimizer, loss, metrics)
-
-    #Load tthe pre-trained model
+    #Load the pre-trained model
     model = get_model("person_model", (None, 64, 64, 3))
     model.summary()
 
-    # Get image and annotation file paths
+    if args.eval:
+        # Load preprocessed dataset (will use cache if exists)
+        X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels)
+        y_cat = tf.keras.utils.to_categorical(y, len(voc_labels))
+        loss, acc = model.evaluate(X, y_cat, batch_size=32)
+        print(f"Eval loss={loss:.4f} acc={acc:.4f}")
+        exit(0)
+
+    # Default behavior: run selective search on a single image and show detections
     image_paths, annotation_paths = getFilepaths(configs.data_dir)
     idx = 1
     image = loadImage(image_paths[idx])
@@ -88,23 +100,19 @@ if __name__ == '__main__':
     # Selective search on the image
     cv2.setUseOptimized(True)
     cv2.setNumThreads(4)
-    # Set the selective search object class
     ss_results = selectiveSearch("fast", image)
-    # # Show rectangles
-    #showRectangles(image, ss_results, first_n=100)
 
     predictions = DictList()
     for ss_result in ss_results:
         x1, y1, w, h = ss_result
-        ss_box = [x1, y1, x1+w, y1+h]
+        ss_box = [x1, y1, x1 + w, y1 + h]
 
         # Get the roi of the box
-        roi = getROI(image, ss_box) # crop the image
+        roi = getROI(image, ss_box)  # crop the image
         roi_label, roi_class, prob = get_pred(roi)
         if roi_class:
             predictions[roi_label] = ss_box, prob
-    #print(predictions)
-    
+
     detections = []
     keys = list(predictions.keys())
     for key in keys:
@@ -114,19 +122,13 @@ if __name__ == '__main__':
         for i in range(len(values)):
             boxes.append(values[i][0])
             probs.append(values[i][1])
-        overlapThresh=0.2
+        overlapThresh = 0.2
         boxes = np.stack(boxes, axis=0)
         probs = np.stack(probs, axis=0)
         non_max_boxes = non_max_suppression_fast(boxes, probs, overlapThresh)
         detections.append([key, non_max_boxes])
         print(detections)
         plot_annotations(image, detections=detections, ground_truth=annotation)
-        
-        #plot_predictions(image, obj_class, non_max_boxes)
-
-
-'''
-'''
 
 
 

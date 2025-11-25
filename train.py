@@ -1,95 +1,14 @@
 # Import libraries
-import numpy as np
-import os
-import xml.etree.ElementTree as etree
-import matplotlib.pyplot as plt
-import cv2
-import pickle
-import random
-from tqdm import tqdm
-from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
-from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPool2D, Dropout, Flatten, Dense
-from tensorflow.keras.optimizers import Adam
 
-from voc2012 import get_labels, getFilepaths, loadImage, loadAnnotation
-from utils import Configs, selectiveSearch, bb_intersection_over_union, getROI
+from voc2012 import get_labels
+from utils import Configs
 from models import Backbone, Model
+from preprocessing import preprocess_dataset
 
 
-def createDataset(image_paths, annotation_paths, image_shape, voc_labels):
-    images = []
-    labels = []
-    for idx in tqdm(range(len(image_paths)), desc="Creating dataset"):
-        image = loadImage(image_paths[idx])
-        annotation = loadAnnotation(annotation_paths[idx])
-        X, y = roiExtractor(image, annotation, image_shape, voc_labels)
-        images.extend(X)
-        labels.extend(y)
-        #if idx==10:
-            #break
-    return images, labels
-
-def roiExtractor(image, annotation, image_shape, voc_labels):
-    X = []  #
-    y = []  #
-    img_classes = [] # all the objec classes in the image
-    img_boxes = [] # Corrosponding boxes to the objects
-
-    # Get objects and their respective bounding boxes
-    for object in annotation["objects"]:
-        obj_class = list(object.keys())[0]
-        if obj_class in voc_labels:
-            obj_box = list(object.values())[0]
-            img_classes.append(obj_class)
-            img_boxes.append(obj_box)
-    
-    # If no objects found in training labels, exit
-    if not img_classes:
-        return X, y
-
-    max_background_images = 5 * len(img_classes) # get only 5 background images per object
-    num_background_images = 0 # counter for bckground images
-    
-    # Get selective search proposals for the image
-    ss_results = selectiveSearch("fast", image)
-    background_images = []
-    for ss_result in ss_results:
-        x1, y1, w, h = ss_result
-        ss_box = [x1, y1, x1+w, y1+h]
-        
-        #Get iou of the ss_box for each object class (filtered) in the image
-        iou_list = []
-        for idx in range(len(img_classes)):
-            iou = bb_intersection_over_union(ss_box, obj_box)
-            roi_class = img_classes[idx]
-            iou_list.append(iou)
-
-        # Get max of iou and corrosponding label
-        iou_max = max(iou_list)
-        if iou_max > 0.7:
-            # Get the roi and resize it to the input shape of nn
-            roi = getROI(image, ss_box) # crop the image
-            roi = cv2.resize(roi, (image_shape[0], image_shape[1])) # resize the image
-            roi_class = img_classes[iou_list.index(iou_max)]
-            roi_label = voc_labels.get(roi_class)
-            X.append(roi)
-            y.append(roi_label)
-        elif iou_max < 0.2 and num_background_images < max_background_images:
-            # Get the roi and resize it to the input shape of nn
-            roi = getROI(image, ss_box) # crop the image
-            roi = cv2.resize(roi, (image_shape[0], image_shape[1])) # resize the image
-            background_images.append(roi)
-            num_background_images += 1
-    # create labels for background images
-    background_labels = [0] * len(background_images) # label for background
-    X.extend(background_images)
-    y.extend(background_labels)
-    assert(len(X)==len(y))
-    return X, y
+# Use preprocessing module to prepare dataset
 
 
 
@@ -129,15 +48,10 @@ if __name__ == '__main__':
     configs = Configs(data_dir, num_classes, dropout_rate, learning_rate, test_size, image_shape, batch_size, epochs, optimizer, loss, metrics)
 
 
-    # Get the dataset
-    image_paths, annotation_paths = getFilepaths(configs.data_dir)
-    
-    images, labels = createDataset(image_paths, annotation_paths, configs.image_shape, voc_labels)
-
-    # Convert the images in np arrays and split into train/test dataset
-    X = np.array(images)
-    y = np.array(labels)
-    y = tf.keras.utils.to_categorical(labels, len(voc_labels))
+    # Preprocess dataset (will cache to preprocessed.npz by default)
+    X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels)
+    # labels -> categorical
+    y = tf.keras.utils.to_categorical(y, len(voc_labels))
     # split the data
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=configs.test_size, random_state=42)
 
