@@ -100,7 +100,8 @@ if __name__ == '__main__':
             except Exception:
                 pass
         # Load preprocessed dataset (will use cache if exists)
-        X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels, out_path=cache_path)
+        workers = getattr(args, 'workers', None)
+        X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels, out_path=cache_path, workers=workers)
         y_cat = tf.keras.utils.to_categorical(y, len(voc_labels))
         loss, acc = model.evaluate(X, y_cat, batch_size=32)
         print(f"Eval loss={loss:.4f} acc={acc:.4f}")

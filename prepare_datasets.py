@@ -17,14 +17,14 @@ def ensure_processed_dir():
     return processed_dir
 
 
-def build_cache(data_dir, image_shape, voc_labels, out_name, force=False):
+def build_cache(data_dir, image_shape, voc_labels, out_name, force=False, workers=None):
     processed_dir = ensure_processed_dir()
-    out_path = os.path.join(processed_dir, out_name)
+    out_path = os.path.join(processed_dir, out_name) if not os.path.isabs(out_name) else out_name
     if os.path.exists(out_path) and not force:
         print(f"Cache exists: {out_path} (use --force to regenerate)")
         return
     print(f"Building cache for {data_dir} -> {out_path}")
-    preprocess_dataset(data_dir, image_shape, voc_labels, out_path=out_path)
+    preprocess_dataset(data_dir, image_shape, voc_labels, out_path=out_path, workers=workers)
     print("Done")
 
 
@@ -35,6 +35,7 @@ if __name__ == '__main__':
     parser.add_argument('--image_size', type=int, default=64, help='Square image size (default: 64)')
     parser.add_argument('--force', action='store_true', help='Force regeneration of caches')
     parser.add_argument('--out-dir', dest='out_dir', required=False, help='Directory to write processed caches (default: ./processed)')
+    parser.add_argument('--workers', type=int, required=False, help='Number of worker processes to use (default: 80% of CPUs)')
     args = parser.parse_args()
 
     # voc_labels from voc2012 module to keep filtering consistent
@@ -60,8 +61,10 @@ if __name__ == '__main__':
     else:
         processed_dir = ensure_processed_dir()
 
-    build_cache(train_data, image_shape, voc_labels, os.path.join(processed_dir, "preprocessed_train.pkl"), force=args.force)
+    # Pass workers through to preprocess_dataset
+    workers = args.workers
+    build_cache(train_data, image_shape, voc_labels, os.path.join(processed_dir, "preprocessed_train.pkl"), force=args.force, workers=workers)
     if test_data:
-        build_cache(test_data, image_shape, voc_labels, os.path.join(processed_dir, "preprocessed_test.pkl"), force=args.force)
+        build_cache(test_data, image_shape, voc_labels, os.path.join(processed_dir, "preprocessed_test.pkl"), force=args.force, workers=workers)
 
     print("All requested caches are prepared.")

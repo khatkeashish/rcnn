@@ -69,7 +69,8 @@ if __name__ == '__main__':
             os.remove(cache_path)
         except Exception:
             pass
-    X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels, out_path=cache_path)
+    workers = getattr(args, 'workers', None)
+    X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels, out_path=cache_path, workers=workers)
     # labels -> categorical
     y = tf.keras.utils.to_categorical(y, len(voc_labels))
     # split the data

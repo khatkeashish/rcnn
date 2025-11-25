@@ -5,6 +5,8 @@ import pickle
 
 from voc2012 import getFilepaths, loadImage, loadAnnotation
 from utils import selectiveSearch, getROI, bb_intersection_over_union
+from multiprocessing import cpu_count, Pool
+from functools import partial
 
 
 def roi_extractor(image, annotation, image_shape, voc_labels):
@@ -71,19 +73,39 @@ def __resize_roi(roi, image_shape):
     return roi
 
 
-def create_dataset(image_paths, annotation_paths, image_shape, voc_labels):
+def _process_single(idx, image_paths, annotation_paths, image_shape, voc_labels):
+    # Helper to process one image/annotation pair
+    image = loadImage(image_paths[idx])
+    annotation = loadAnnotation(annotation_paths[idx])
+    X, y = roi_extractor(image, annotation, image_shape, voc_labels)
+    return X, y
+
+
+def create_dataset(image_paths, annotation_paths, image_shape, voc_labels, workers=None):
     images = []
     labels = []
-    for idx in tqdm(range(len(image_paths)), desc="Creating dataset"):
-        image = loadImage(image_paths[idx])
-        annotation = loadAnnotation(annotation_paths[idx])
-        X, y = roi_extractor(image, annotation, image_shape, voc_labels)
-        images.extend(X)
-        labels.extend(y)
+    n = len(image_paths)
+    if workers is None:
+        workers = max(1, int(0.8 * cpu_count()))
+
+    if workers == 1:
+        # Serial fallback
+        for idx in tqdm(range(n), desc="Creating dataset"):
+            X, y = _process_single(idx, image_paths, annotation_paths, image_shape, voc_labels)
+            images.extend(X)
+            labels.extend(y)
+    else:
+        with Pool(processes=workers) as pool:
+            func = partial(_process_single, image_paths=image_paths, annotation_paths=annotation_paths, image_shape=image_shape, voc_labels=voc_labels)
+            # imap to keep order and use tqdm for progress
+            for X, y in tqdm(pool.imap(func, range(n)), total=n, desc="Creating dataset"):
+                images.extend(X)
+                labels.extend(y)
+
     return np.array(images), np.array(labels)
 
 
-def preprocess_dataset(data_dir, image_shape, voc_labels, out_path=None):
+def preprocess_dataset(data_dir, image_shape, voc_labels, out_path=None, workers=None):
     """Preprocess dataset and cache to `out_path` using pickle.
     If cache exists it will be loaded instead of re-running processing.
     Returns: (X, y) numpy arrays
@@ -109,7 +131,7 @@ def preprocess_dataset(data_dir, image_shape, voc_labels, out_path=None):
             pass
 
     image_paths, annotation_paths = getFilepaths(data_dir)
-    X, y = create_dataset(image_paths, annotation_paths, image_shape, voc_labels)
+    X, y = create_dataset(image_paths, annotation_paths, image_shape, voc_labels, workers=workers)
     try:
         with open(out_path, "wb") as f:
             pickle.dump({"X": X, "y": y}, f, protocol=pickle.HIGHEST_PROTOCOL)
