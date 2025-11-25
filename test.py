@@ -46,6 +46,8 @@ class DictList(dict):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--eval', action='store_true', help='Run evaluation on preprocessed dataset')
+    parser.add_argument('--out-dir', dest='out_dir', required=False, help='Directory to read/write cached preprocessed files (default: ./processed)')
+    parser.add_argument('--regen-cache', action='store_true', help='Force regeneration of the preprocess cache')
     args = parser.parse_args()
     # Configure GPU memory growth
     gpus = tf.config.list_physical_devices('GPU')
@@ -83,10 +85,20 @@ if __name__ == '__main__':
     model = get_model("person_model", (None, 64, 64, 3))
     model.summary()
 
-    processed_dir = os.path.join(os.getcwd(), "processed")
-    os.makedirs(processed_dir, exist_ok=True)
+    if args.out_dir:
+        processed_dir = os.path.abspath(args.out_dir)
+        os.makedirs(processed_dir, exist_ok=True)
+    else:
+        processed_dir = os.path.join(os.getcwd(), "processed")
+        os.makedirs(processed_dir, exist_ok=True)
     cache_path = os.path.join(processed_dir, "preprocessed_test.pkl")
     if args.eval:
+        # If regen requested, remove existing cache first
+        if args.regen_cache and os.path.exists(cache_path):
+            try:
+                os.remove(cache_path)
+            except Exception:
+                pass
         # Load preprocessed dataset (will use cache if exists)
         X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels, out_path=cache_path)
         y_cat = tf.keras.utils.to_categorical(y, len(voc_labels))

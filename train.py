@@ -7,6 +7,7 @@ from voc2012 import get_labels
 from utils import Configs
 from models import Backbone, Model
 from preprocessing import preprocess_dataset
+import argparse
 
 
 # Use preprocessing module to prepare dataset
@@ -16,6 +17,10 @@ from preprocessing import preprocess_dataset
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--out-dir', dest='out_dir', required=False, help='Directory to write/read cached preprocessed files (default: ./processed)')
+    parser.add_argument('--regen-cache', action='store_true', help='Force regeneration of the preprocess cache')
+    args = parser.parse_args()
     # Configure GPU memory growth
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
@@ -50,9 +55,20 @@ if __name__ == '__main__':
 
 
     # Preprocess dataset (will cache to preprocessed.pkl in dataset folder)
-    processed_dir = os.path.join(os.getcwd(), "processed")
-    os.makedirs(processed_dir, exist_ok=True)
+    # Determine processed dir (allow override)
+    if args.out_dir:
+        processed_dir = os.path.abspath(args.out_dir)
+        os.makedirs(processed_dir, exist_ok=True)
+    else:
+        processed_dir = os.path.join(os.getcwd(), "processed")
+        os.makedirs(processed_dir, exist_ok=True)
+
     cache_path = os.path.join(processed_dir, "preprocessed_train.pkl")
+    if args.regen_cache and os.path.exists(cache_path):
+        try:
+            os.remove(cache_path)
+        except Exception:
+            pass
     X, y = preprocess_dataset(configs.data_dir, configs.image_shape, voc_labels, out_path=cache_path)
     # labels -> categorical
     y = tf.keras.utils.to_categorical(y, len(voc_labels))
