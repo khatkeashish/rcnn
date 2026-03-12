@@ -3,12 +3,41 @@ name = "rcnn"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
-    "matplotlib>=3.10.7",
-    "numpy>=2.3.5",
+    "numpy>=1.26.4",
     "opencv-contrib-python>=4.11.0.86",
     "scikit-learn>=1.7.2",
-    "tensorflow>=2.20.0",
-    "tqdm>=4.67.1",
+    "tensorflow>=2.16.2",
+    "tensorflow-macos>=2.16.2",
+    "tensorflow-metal>=1.2.0",
 ]
+
+[dependency-groups]
+dev = [
+    "ipdb>=0.13.13",
+    "matplotlib>=3.10.7",
+    "tqdm>=4.67.1",
+    "ruff>=0.8.0",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes (includes unused imports, unused variables)
+    "I",   # isort (import sorting)
+]
+fixable = ["E", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
