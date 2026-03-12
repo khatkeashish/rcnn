@@ -16,6 +16,9 @@ image_size: 64
 batch_size: 256
 epochs: 100
 
+# Fraction of total epochs used to fine-tune the backbone at the end of training
+backbone_train_fraction: 0.1
+
 optimizer: "Adam"
 loss: "categorical_crossentropy"
 metrics:
