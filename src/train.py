@@ -4,6 +4,7 @@ import os
 from collections.abc import Sequence
 
 import tensorflow as tf
+import yaml
 from sklearn.model_selection import train_test_split
 
 from models import Backbone, Model
@@ -55,6 +56,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         required=False,
         help="TensorBoard log directory (default: <out-dir>/logs)",
     )
+    parser.add_argument(
+        "--config",
+        dest="config",
+        required=False,
+        help="Path to YAML config for training (default: ./configs/train.yaml)",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     gpus = tf.config.list_physical_devices("GPU")
@@ -67,17 +74,28 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     voc_labels = get_labels()
 
-    data_dir = "data/VOC2012_train_val/VOC2012_train_val"
+    # Load training configuration from YAML (with sensible defaults)
+    default_config_path = os.path.join(os.getcwd(), "configs", "train.yaml")
+    config_path = args.config if args.config is not None else default_config_path
+    config_data: dict = {}
+    if os.path.isfile(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            loaded = yaml.safe_load(f)
+            if isinstance(loaded, dict):
+                config_data = loaded
+
+    data_dir = config_data.get("data_dir", "data/VOC2012_train_val/VOC2012_train_val")
     num_classes = len(voc_labels)
-    dropout_rate = 0.35
-    learning_rate = 0.0001
-    test_size = 0.1
-    image_shape = (64, 64)
-    batch_size = 256
-    epochs = 100
-    optimizer = "Adam"
-    loss = "categorical_crossentropy"
-    metrics = ["accuracy"]
+    dropout_rate = float(config_data.get("dropout_rate", 0.35))
+    learning_rate = float(config_data.get("learning_rate", 0.0001))
+    test_size = float(config_data.get("test_size", 0.1))
+    image_size = int(config_data.get("image_size", 64))
+    image_shape = (image_size, image_size)
+    batch_size = int(config_data.get("batch_size", 256))
+    epochs = int(config_data.get("epochs", 100))
+    optimizer = config_data.get("optimizer", "Adam")
+    loss = config_data.get("loss", "categorical_crossentropy")
+    metrics = config_data.get("metrics", ["accuracy"])
 
     configs = Configs(
         data_dir,
@@ -93,8 +111,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         metrics,
     )
 
+    cache_dir = config_data.get("cache_dir")
     if args.out_dir:
         processed_dir = os.path.abspath(args.out_dir)
+        os.makedirs(processed_dir, exist_ok=True)
+    elif cache_dir:
+        processed_dir = os.path.abspath(cache_dir)
         os.makedirs(processed_dir, exist_ok=True)
     else:
         processed_dir = os.path.join(os.getcwd(), "processed")
@@ -106,9 +128,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             os.remove(cache_path)
         except Exception:
             pass
-    workers = getattr(args, "workers", None)
-    cache_name = getattr(args, "cache_name", None)
-    chunk_size = getattr(args, "chunk_size", None)
+    workers = getattr(args, "workers", None) or config_data.get("workers")
+    cache_name = getattr(args, "cache_name", None) or config_data.get("cache_name")
+    chunk_size = getattr(args, "chunk_size", None) or config_data.get("chunk_size")
     X, y = preprocess_dataset(
         configs.data_dir,
         configs.image_shape,
@@ -135,8 +157,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     testdata = tsdata.flow(x=X_test, y=y_test)
 
+    backbone_arch = config_data.get("backbone_arch", "vgg16")
     backbone = Backbone(
-        arch="vgg16",
+        arch=backbone_arch,
         include_top=False,
         weights="imagenet",
         input_shape=configs.input_shape,
@@ -159,8 +182,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     model.summary()
 
+    # Ensure models directory exists and use descriptive filenames (include backbone name)
+    models_dir = os.path.join(os.getcwd(), "models")
+    os.makedirs(models_dir, exist_ok=True)
+    best_model_path = os.path.join(models_dir, f"rcnn_{backbone_arch}_voc2012_64x64_best.h5")
+    final_model_path = os.path.join(models_dir, f"rcnn_{backbone_arch}_voc2012_64x64_final.h5")
+
     checkpoint = tf.keras.callbacks.ModelCheckpoint(
-        "person-model.h5",
+        best_model_path,
         verbose=1,
         monitor="val_loss",
         save_best_only=True,
@@ -174,6 +203,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.tensorboard:
         if args.logdir:
             tb_logdir = os.path.abspath(args.logdir)
+        elif "logdir" in config_data:
+            tb_logdir = os.path.abspath(config_data["logdir"])
         else:
             tb_logdir = os.path.join(processed_dir, "logs")
         os.makedirs(tb_logdir, exist_ok=True)
@@ -196,7 +227,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         shuffle=True,
     )
 
-    model.save("models/rcnn.h5")
+    model.save(final_model_path)
 
     print()
     print()

@@ -1,0 +1,11 @@
+train_data: "data/VOC2012_train_val/VOC2012_train_val"
+test_data: "data/VOC2012_test"
+
+image_size: 64
+
+out_dir: "data/processed"
+
+workers: 8
+cache_name: "preprocessed"
+chunk_size: 100  # images; higher uses more memory
+
