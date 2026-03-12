@@ -8,6 +8,14 @@ data/
 *.npz
 *.part*.pkl
 
+# Trained models / weights
+*.h5
+*.hdf5
+models/
+
+# Logs (TensorBoard, etc.)
+logs/
+
 # Editor / OS files
 .DS_Store
 *.swp
