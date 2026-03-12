@@ -1,6 +1,6 @@
-# Makefile for dataset preparation, training, and tooling
+# Makefile for dataset preparation, training, inference, and tooling
 
-.PHONY: prepare prepare-force train train-force tensorboard format
+.PHONY: prepare prepare-force train train-force infer tensorboard format
 
 
 prepare:
@@ -19,6 +19,11 @@ train:
 train-force:
 	@echo "Training RCNN model (regenerating cache)"
 	@uv run python src/train.py --config configs/train.yaml --tensorboard --regen-cache
+
+infer:
+	@echo "Running inference on directory (set INPUT_DIR=/path/to/images)"
+	@test -n "$$INPUT_DIR" || (echo "ERROR: You must set INPUT_DIR=/path/to/images" && exit 1)
+	@uv run python src/infer.py --input-dir "$$INPUT_DIR"
 
 tensorboard:
 	@echo "Starting TensorBoard on logs/"

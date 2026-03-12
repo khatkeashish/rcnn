@@ -66,9 +66,9 @@ Using train/test scripts directly
 python3 train.py --out-dir /tmp/processed --regen-cache --workers 8 --cache-name myrun --chunk-size 100
 ```
 
-- Evaluate using cached test dataset:
+- Run inference on a directory of images:
 ```
-python3 test.py --eval --out-dir /tmp/processed --workers 8
+python3 infer.py --input-dir /path/to/images
 ```
 
 Notes
