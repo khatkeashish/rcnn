@@ -40,9 +40,9 @@ Now we have 2000 regions and respective confidence scores for the classes. With 
 This repo includes helper scripts to preprocess VOC datasets into cached pickles of ROI image patches and labels.
 
 prepare_datasets.py flags
-- `--train_data`: path to VOC train/val directory (defaults to `VOC2012_train_val/VOC2012_train_val` if present)
-- `--test_data`: path to VOC test directory (defaults to `VOC2012_test/VOC2012_test` if present)
-- `--out-dir`: directory to write caches (default: `./processed`)
+- `--train_data`: path to VOC train/val directory (defaults to `data/VOC2012_train_val/VOC2012_train_val` if present)
+- `--test_data`: path to VOC test directory (defaults to `data/VOC2012_test/VOC2012_test` if present)
+- `--out-dir`: directory to write caches (default: `data/processed`)
 - `--force`: force regeneration even if cache exists
 - `--workers`: number of worker processes (default: 80% of CPUs)
 - `--cache-name`: base name for cache files (default derived from out-path and image size)
