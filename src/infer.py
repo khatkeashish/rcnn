@@ -55,6 +55,7 @@ def load_train_config(config_path: str | None = None) -> dict:
 def infer_directory(
     input_dir: str,
     model_path: str | None = None,
+    run_dir: str | None = None,
     output_dir: str | None = None,
     image_size: int | None = None,
     prob_threshold: float = 0.5,
@@ -75,12 +76,29 @@ def infer_directory(
     resolved_image_size = image_size or int(config.get("image_size", 64))
     backbone_arch = config.get("backbone_arch", "vgg16")
 
-    default_model_path = os.path.join(
+    default_best_keras = os.path.join(
+        os.getcwd(),
+        "models",
+        f"rcnn_{backbone_arch}_voc2012_{resolved_image_size}x{resolved_image_size}_best.keras",
+    )
+    default_best_h5 = os.path.join(
         os.getcwd(),
         "models",
         f"rcnn_{backbone_arch}_voc2012_{resolved_image_size}x{resolved_image_size}_best.h5",
     )
-    resolved_model_path = model_path or default_model_path
+
+    resolved_model_path = None
+    if model_path:
+        resolved_model_path = model_path
+    elif run_dir:
+        rdir = os.path.abspath(run_dir)
+        for candidate in ("best_model.keras", "best_model.h5", "final_model.keras", "final_model.h5"):
+            cpath = os.path.join(rdir, candidate)
+            if os.path.exists(cpath):
+                resolved_model_path = cpath
+                break
+    else:
+        resolved_model_path = default_best_keras if os.path.exists(default_best_keras) else default_best_h5
 
     if not os.path.exists(resolved_model_path):
         raise FileNotFoundError(
@@ -173,7 +191,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--model-path",
         required=False,
-        help="Path to trained model (.h5). Defaults to best checkpoint from train.yaml config.",
+        help="Path to trained model (.keras/.h5). Defaults to stable best alias derived from train.yaml config.",
+    )
+    parser.add_argument(
+        "--run-dir",
+        required=False,
+        help="Path to a specific training run directory (uses best_model/final_model inside it).",
     )
     parser.add_argument(
         "--output-dir",
@@ -209,6 +232,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     infer_directory(
         input_dir=input_dir,
         model_path=args.model_path,
+        run_dir=args.run_dir,
         output_dir=out_dir,
         image_size=args.image_size,
         prob_threshold=args.prob_threshold,
