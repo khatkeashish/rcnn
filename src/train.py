@@ -217,21 +217,47 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Ensure models directory exists and use descriptive filenames (include backbone name)
     models_dir = os.path.join(os.getcwd(), "models")
     os.makedirs(models_dir, exist_ok=True)
-    best_model_path = os.path.join(models_dir, f"rcnn_{backbone_arch}_voc2012_64x64_best.h5")
-    final_model_path = os.path.join(models_dir, f"rcnn_{backbone_arch}_voc2012_64x64_final.h5")
+    best_model_path = os.path.join(
+        models_dir, f"rcnn_{backbone_arch}_voc2012_{image_size}x{image_size}_best.h5"
+    )
+    final_model_path = os.path.join(
+        models_dir, f"rcnn_{backbone_arch}_voc2012_{image_size}x{image_size}_final.h5"
+    )
+
+    early_cfg = config_data.get("early_stopping", {})
+    if not isinstance(early_cfg, dict):
+        early_cfg = {}
+    early_enabled = bool(early_cfg.get("enabled", True))
+    early_monitor = str(early_cfg.get("monitor", "val_loss"))
+    early_min_delta = float(early_cfg.get("min_delta", 0.0))
+    early_patience = int(early_cfg.get("patience", 5))
+    early_mode = str(early_cfg.get("mode", "auto"))
+    early_restore_best_weights = bool(early_cfg.get("restore_best_weights", False))
+
+    checkpoint_monitor = str(config_data.get("checkpoint_monitor", early_monitor))
+    checkpoint_mode = str(config_data.get("checkpoint_mode", "auto"))
 
     checkpoint = tf.keras.callbacks.ModelCheckpoint(
         best_model_path,
         verbose=1,
-        monitor="val_loss",
+        monitor=checkpoint_monitor,
         save_best_only=True,
         save_weights_only=False,
-        mode="auto",
+        mode=checkpoint_mode,
     )
 
-    early = tf.keras.callbacks.EarlyStopping(monitor="val_loss", min_delta=0, patience=100, verbose=1, mode="auto")
+    callbacks = [checkpoint]
+    if early_enabled and early_patience > 0:
+        early = tf.keras.callbacks.EarlyStopping(
+            monitor=early_monitor,
+            min_delta=early_min_delta,
+            patience=early_patience,
+            verbose=1,
+            mode=early_mode,
+            restore_best_weights=early_restore_best_weights,
+        )
+        callbacks.append(early)
 
-    callbacks = [checkpoint, early]
     if args.tensorboard:
         if args.logdir:
             tb_logdir = os.path.abspath(args.logdir)

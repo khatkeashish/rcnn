@@ -33,3 +33,17 @@ chunk_size: 100  # images; higher uses more memory
 # Logging defaults
 logdir: "logs"
 
+early_stopping:
+  enabled: true
+  # "runs" here correspond to validation evaluations (typically once per epoch)
+  monitor: "val_loss"
+  min_delta: 0.0
+  patience: 5
+  mode: "auto"
+  restore_best_weights: false
+
+# Optional: override the metric used to select the "best" checkpoint.
+# Defaults to `early_stopping.monitor` if not set.
+# checkpoint_monitor: "val_loss"
+# checkpoint_mode: "auto"
+
