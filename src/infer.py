@@ -1,5 +1,6 @@
 import argparse
 import os
+import platform
 from typing import Sequence
 
 import cv2
@@ -63,14 +64,29 @@ def infer_directory(
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
 
-    # GPU memory growth
-    gpus = tf.config.list_physical_devices("GPU")
-    if gpus:
+    # Prefer GPU on macOS (Metal / MPS) and CUDA on Linux, if available.
+    try:
+        # On modern TF with Apple Silicon, GPUs are usually reported as type "GPU"
+        all_gpus = tf.config.list_physical_devices("GPU")
+    except AttributeError:
+        all_gpus = []
+
+
+    if all_gpus and hasattr(tf.config, "set_visible_devices"):
         try:
-            for gpu in gpus:
-                tf.config.set_memory_growth(gpu, True)
-        except RuntimeError:
+            tf.config.set_visible_devices(all_gpus, "GPU")
+        except (RuntimeError, ValueError):
+            # Visible devices may already be set; ignore.
             pass
+
+    # Enable memory growth if supported – primarily useful for CUDA GPUs.
+    if all_gpus and hasattr(tf.config, "set_memory_growth"):
+        for gpu in all_gpus:
+            try:
+                tf.config.set_memory_growth(gpu, True)
+            except (RuntimeError, AttributeError, ValueError):
+                # Ignore failures; inference can still proceed.
+                continue
 
     config = load_train_config()
     resolved_image_size = image_size or int(config.get("image_size", 64))
